@@ -1,4 +1,4 @@
-name: IFAS VMS V3 Build
+name: IFAS VMS Build
 
 on:
   workflow_dispatch:
@@ -17,19 +17,22 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Extract V3 ZIP
+      - name: Extract IFAS VMS ZIP
         shell: pwsh
         run: |
           $zip = Get-ChildItem `
             -Path . `
-            -Filter "-Filter "IFAS-VMS-SERVER.zip"" `
+            -Filter "IFAS-VMS-SERVER.zip" `
             -Recurse |
             Select-Object -First 1
 
           if (-not $zip) {
-            Write-Error "IFAS-VMS-COMPLETE-PRODUCT-V3.zip not found."
+            Write-Error "IFAS-VMS-SERVER.zip not found."
             exit 1
           }
+
+          Write-Host "ZIP found:"
+          Write-Host $zip.FullName
 
           New-Item `
             -ItemType Directory `
@@ -41,9 +44,9 @@ jobs:
             -DestinationPath source `
             -Force
 
-          Write-Host "V3 ZIP extracted successfully."
+          Write-Host "ZIP extracted successfully."
 
-      - name: Find Solution
+      - name: Find Visual Studio Solution
         shell: pwsh
         run: |
           $sln = Get-ChildItem `
@@ -53,7 +56,7 @@ jobs:
             Select-Object -First 1
 
           if (-not $sln) {
-            Write-Error "No Visual Studio solution (.sln) found."
+            Write-Error "No Visual Studio solution (.sln) found inside the ZIP."
             exit 1
           }
 
@@ -62,11 +65,15 @@ jobs:
 
           "SOLUTION=$($sln.FullName)" >> $env:GITHUB_ENV
 
-      - name: Restore
-        run: dotnet restore "$env:SOLUTION"
+      - name: Restore NuGet Packages
+        run: |
+          dotnet restore "$env:SOLUTION"
 
       - name: Build Solution
-        run: dotnet build "$env:SOLUTION" -c Release --no-restore
+        run: |
+          dotnet build "$env:SOLUTION" `
+            -c Release `
+            --no-restore
 
       - name: Publish Projects
         shell: pwsh
@@ -78,38 +85,4 @@ jobs:
 
           $projects = Get-ChildItem `
             -Path source `
-            -Filter "*.csproj" `
-            -Recurse
-
-          foreach ($project in $projects) {
-
-            Write-Host "Publishing:"
-            Write-Host $project.FullName
-
-            $name = $project.BaseName
-
-            dotnet publish `
-              $project.FullName `
-              -c Release `
-              -r win-x64 `
-              --self-contained true `
-              -p:PublishSingleFile=true `
-              -p:IncludeNativeLibrariesForSelfExtract=true `
-              -o "publish/$name"
-          }
-
-      - name: Create Complete Windows ZIP
-        shell: pwsh
-        run: |
-          Compress-Archive `
-            -Path publish/* `
-            -DestinationPath IFAS-VMS-V3-WIN-X64.zip `
-            -Force
-
-          Write-Host "Complete Windows ZIP created."
-
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: IFAS-VMS-V3-WIN-X64
-          path: IFAS-VMS-V3-WIN-X64.zip
+            -
