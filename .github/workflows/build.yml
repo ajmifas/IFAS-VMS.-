@@ -17,46 +17,31 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Extract IFAS VMS ZIP
-            - name: Extract IFAS VMS ZIP
+      - name: Find and Extract IFAS VMS ZIP
         shell: pwsh
         run: |
-          $zip = Get-ChildItem `
+          $zips = Get-ChildItem `
             -Path . `
             -Filter "*.zip" `
             -File `
             -Recurse |
             Where-Object {
               $_.FullName -notmatch "\\.git\\"
-            } |
-            Select-Object -First 1
+            }
 
-          if (-not $zip) {
+          if (-not $zips) {
             Write-Error "No ZIP file found in repository."
             exit 1
           }
 
-          Write-Host "ZIP found:"
-          Write-Host $zip.FullName
-
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path source | Out-Null
-
-          Expand-Archive `
-            -Path $zip.FullName `
-            -DestinationPath source `
-            -Force
-
-          Write-Host "ZIP extracted successfully."
-
-          if (-not $zip) {
-            Write-Error "IFAS-VMS-SERVER.zip not found."
-            exit 1
+          Write-Host "ZIP file(s) found:"
+          $zips | ForEach-Object {
+            Write-Host $_.FullName
           }
 
-          Write-Host "ZIP found:"
+          $zip = $zips | Select-Object -First 1
+
+          Write-Host "Selected ZIP:"
           Write-Host $zip.FullName
 
           New-Item `
@@ -77,6 +62,7 @@ jobs:
           $sln = Get-ChildItem `
             -Path source `
             -Filter "*.sln" `
+            -File `
             -Recurse |
             Select-Object -First 1
 
@@ -110,4 +96,9 @@ jobs:
 
           $projects = Get-ChildItem `
             -Path source `
-            -
+            -Filter "*.csproj" `
+            -File `
+            -Recurse
+
+          if (-not $projects) {
+            Write-Error "No .cs
