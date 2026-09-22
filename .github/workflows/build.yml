@@ -9,25 +9,14 @@ jobs:
 
     steps:
 
-      # ---------------------------------------------------------
-      # 1. Checkout repository
-      # ---------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
-      # ---------------------------------------------------------
-      # 2. Setup .NET 8
-      # ---------------------------------------------------------
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-
-      # ---------------------------------------------------------
-      # 3. Find and Extract ZIP
-      # ---------------------------------------------------------
       - name: Find and Extract IFAS VMS ZIP
         shell: pwsh
         run: |
@@ -45,8 +34,7 @@ jobs:
             exit 1
           }
 
-          Write-Host "ZIP file(s) found:"
-
+          Write-Host "ZIP files found:"
           $zips | ForEach-Object {
             Write-Host $_.FullName
           }
@@ -54,7 +42,7 @@ jobs:
           $zip = $zips | Select-Object -First 1
 
           Write-Host ""
-          Write-Host "Selected ZIP:"
+          Write-Host "Using ZIP:"
           Write-Host $zip.FullName
 
           New-Item `
@@ -67,14 +55,9 @@ jobs:
             -DestinationPath source `
             -Force
 
-          Write-Host ""
-          Write-Host "ZIP extracted successfully."
+          Write-Host "Extraction completed."
 
-
-      # ---------------------------------------------------------
-      # 4. Show extracted structure
-      # ---------------------------------------------------------
-      - name: Show Extracted Project Structure
+      - name: Show Project Structure
         shell: pwsh
         run: |
           Write-Host "Searching for solution and project files..."
@@ -88,69 +71,59 @@ jobs:
               Write-Host $_.FullName
             }
 
+      # ---------------------------------------------------------
+      # FIX 1 - VMS CLIENT WPF PROJECT
+      # ---------------------------------------------------------
 
-      # ---------------------------------------------------------
-      # 5. Fix VMS Client WPF configuration
-      # ---------------------------------------------------------
-      - name: Fix VMS Client WPF Configuration
+      - name: Fix VMS Client WPF Project
         shell: pwsh
         run: |
-
-          $clientCsproj = Get-ChildItem `
+          $project = Get-ChildItem `
             -Path source `
             -Filter "IFAS.VMS.Client.csproj" `
             -File `
             -Recurse |
             Select-Object -First 1
 
-          if ($clientCsproj) {
-
-            Write-Host "Fixing VMS Client:"
-            Write-Host $clientCsproj.FullName
-
-            $path = $clientCsproj.FullName
-
-            $content = Get-Content `
-              -Path $path `
-              -Raw
-
-            # Replace old WindowsDesktop SDK
-            $content = $content.Replace(
-              'Microsoft.NET.Sdk.WindowsDesktop',
-              'Microsoft.NET.Sdk'
-            )
-
-            # Make sure WPF is enabled
-            if ($content -notmatch '<UseWPF>true</UseWPF>') {
-
-              $content = $content.Replace(
-                '</PropertyGroup>',
-                '    <UseWPF>true</UseWPF>' + [Environment]::NewLine +
-                '  </PropertyGroup>',
-                1
-              )
-            }
-
-            Set-Content `
-              -Path $path `
-              -Value $content `
-              -Encoding UTF8
-
-            Write-Host "VMS Client project configuration fixed."
-          }
-          else {
+          if (-not $project) {
             Write-Host "VMS Client project not found."
+            exit 0
           }
 
+          Write-Host "Fixing:"
+          Write-Host $project.FullName
+
+          $path = $project.FullName
+          $content = Get-Content $path -Raw
+
+          $content = $content.Replace(
+            'Microsoft.NET.Sdk.WindowsDesktop',
+            'Microsoft.NET.Sdk'
+          )
+
+          if ($content -notmatch '<UseWPF>true</UseWPF>') {
+            $content = $content.Replace(
+              '</PropertyGroup>',
+              "    <UseWPF>true</UseWPF>`r`n  </PropertyGroup>",
+              1
+            )
+          }
+
+          Set-Content `
+            -Path $path `
+            -Value $content `
+            -Encoding UTF8
+
+          Write-Host "VMS Client WPF project fixed."
 
       # ---------------------------------------------------------
-      # 6. Fix VMS Client Application ambiguity
+      # FIX 2 - VMS CLIENT APP.XAML.CS
       # ---------------------------------------------------------
+
       - name: Fix VMS Client Application Reference
         shell: pwsh
         run: |
-
-          $appFile = Get-ChildItem `
+          $file = Get-ChildItem `
             -Path source `
             -Filter "App.xaml.cs" `
             -File `
@@ -160,62 +133,57 @@ jobs:
             } |
             Select-Object -First 1
 
-          if ($appFile) {
-
-            Write-Host "Fixing Client App.xaml.cs:"
-            Write-Host $appFile.FullName
-
-            $path = $appFile.FullName
-
-            $content = Get-Content `
-              -Path $path `
-              -Raw
-
-            # Fix ambiguous WPF Application
-            $content = $content.Replace(
-              ': Application',
-              ': System.Windows.Application'
-            )
-
-            Set-Content `
-              -Path $path `
-              -Value $content `
-              -Encoding UTF8
-
-            Write-Host "Client Application reference fixed."
+          if (-not $file) {
+            Write-Host "Client App.xaml.cs not found."
+            exit 0
           }
 
+          Write-Host "Fixing:"
+          Write-Host $file.FullName
+
+          $path = $file.FullName
+          $content = Get-Content $path -Raw
+
+          $content = $content.Replace(
+            ': Application',
+            ': System.Windows.Application'
+          )
+
+          Set-Content `
+            -Path $path `
+            -Value $content `
+            -Encoding UTF8
+
+          Write-Host "Client Application reference fixed."
 
       # ---------------------------------------------------------
-      # 7. Fix License Manager root project
+      # FIX 3 - LICENSE MANAGER ROOT PROJECT
       # ---------------------------------------------------------
-      - name: Fix License Manager Project
+
+      - name: Fix License Manager Root Project
         shell: pwsh
         run: |
-
-          $licenseCsproj = Get-ChildItem `
+          $project = Get-ChildItem `
             -Path source `
             -Filter "IFAS.LicenseManager.csproj" `
             -File `
             -Recurse |
             Select-Object -First 1
 
-          if ($licenseCsproj) {
+          if (-not $project) {
+            Write-Host "License Manager project not found."
+            exit 0
+          }
 
-            Write-Host "Fixing License Manager project:"
-            Write-Host $licenseCsproj.FullName
+          Write-Host "Fixing:"
+          Write-Host $project.FullName
 
-            $path = $licenseCsproj.FullName
+          $path = $project.FullName
+          $content = Get-Content $path -Raw
 
-            $content = Get-Content `
-              -Path $path `
-              -Raw
+          if ($content -notmatch 'Compile Remove="IFAS.LicenseCreator.Desktop') {
 
-            # Prevent the root License Manager project
-            # from compiling the nested Desktop project files.
-            if ($content -notmatch 'IFAS.LicenseCreator.Desktop') {
-
-              $removeBlock = @'
+            $removeBlock = @'
 
   <ItemGroup>
     <Compile Remove="IFAS.LicenseCreator.Desktop\**" />
@@ -225,106 +193,88 @@ jobs:
   </ItemGroup>
 '@
 
-              $content = $content.Replace(
-                '</Project>',
-                $removeBlock + [Environment]::NewLine + '</Project>'
-              )
-            }
-
-            Set-Content `
-              -Path $path `
-              -Value $content `
-              -Encoding UTF8
-
-            Write-Host "License Manager project fixed."
-          }
-          else {
-            Write-Host "License Manager project not found."
+            $content = $content.Replace(
+              '</Project>',
+              $removeBlock + "`r`n</Project>"
+            )
           }
 
+          Set-Content `
+            -Path $path `
+            -Value $content `
+            -Encoding UTF8
+
+          Write-Host "License Manager root project fixed."
 
       # ---------------------------------------------------------
-      # 8. Fix License Creator Desktop WPF project
+      # FIX 4 - LICENSE CREATOR DESKTOP WPF
       # ---------------------------------------------------------
+
       - name: Fix License Creator Desktop WPF
         shell: pwsh
         run: |
-
-          $desktopCsproj = Get-ChildItem `
+          $project = Get-ChildItem `
             -Path source `
             -Filter "IFAS.LicenseCreator.Desktop.csproj" `
             -File `
             -Recurse |
             Select-Object -First 1
 
-          if ($desktopCsproj) {
-
-            Write-Host "Fixing License Creator Desktop:"
-            Write-Host $desktopCsproj.FullName
-
-            $path = $desktopCsproj.FullName
-
-            $content = Get-Content `
-              -Path $path `
-              -Raw
-
-            # Replace old WindowsDesktop SDK
-            $content = $content.Replace(
-              'Microsoft.NET.Sdk.WindowsDesktop',
-              'Microsoft.NET.Sdk'
-            )
-
-            # Enable WPF
-            if ($content -notmatch '<UseWPF>true</UseWPF>') {
-
-              $content = $content.Replace(
-                '</PropertyGroup>',
-                '    <UseWPF>true</UseWPF>' + [Environment]::NewLine +
-                '  </PropertyGroup>',
-                1
-              )
-            }
-
-            Set-Content `
-              -Path $path `
-              -Value $content `
-              -Encoding UTF8
-
-            Write-Host "License Creator Desktop WPF configuration fixed."
-          }
-          else {
+          if (-not $project) {
             Write-Host "License Creator Desktop project not found."
+            exit 0
           }
 
+          Write-Host "Fixing:"
+          Write-Host $project.FullName
+
+          $path = $project.FullName
+          $content = Get-Content $path -Raw
+
+          $content = $content.Replace(
+            'Microsoft.NET.Sdk.WindowsDesktop',
+            'Microsoft.NET.Sdk'
+          )
+
+          if ($content -notmatch '<UseWPF>true</UseWPF>') {
+            $content = $content.Replace(
+              '</PropertyGroup>',
+              "    <UseWPF>true</UseWPF>`r`n  </PropertyGroup>",
+              1
+            )
+          }
+
+          Set-Content `
+            -Path $path `
+            -Value $content `
+            -Encoding UTF8
+
+          Write-Host "License Creator Desktop WPF project fixed."
 
       # ---------------------------------------------------------
-      # 9. Fix License Creator Desktop source references
+      # FIX 5 - LICENSE CREATOR DESKTOP SOURCE
       # ---------------------------------------------------------
+
       - name: Fix License Creator Desktop Source
         shell: pwsh
         run: |
-
-          $desktopFiles = Get-ChildItem `
+          $files = Get-ChildItem `
             -Path source `
-            -PathType Leaf `
-            -Include "*.cs" `
+            -Filter "*.cs" `
+            -File `
             -Recurse |
             Where-Object {
               $_.FullName -match "IFAS.LicenseCreator.Desktop"
             }
 
-          foreach ($file in $desktopFiles) {
+          foreach ($file in $files) {
 
             Write-Host "Checking:"
             Write-Host $file.FullName
 
             $path = $file.FullName
+            $content = Get-Content $path -Raw
 
-            $content = Get-Content `
-              -Path $path `
-              -Raw
-
-            # Add WPF namespace if required
             if (
               $content -match '\bApplication\b' -or
               $content -match '\bWindow\b' -or
@@ -334,13 +284,11 @@ jobs:
               if ($content -notmatch 'using System\.Windows;') {
 
                 $content =
-                  'using System.Windows;' +
-                  [Environment]::NewLine +
+                  "using System.Windows;`r`n" +
                   $content
               }
             }
 
-            # Explicitly qualify Application when needed
             $content = $content.Replace(
               ': Application',
               ': System.Windows.Application'
@@ -352,17 +300,16 @@ jobs:
               -Encoding UTF8
           }
 
-          Write-Host "License Creator Desktop source check completed."
-
+          Write-Host "License Creator Desktop source fixed."
 
       # ---------------------------------------------------------
-      # 10. Fix Server Entity Framework namespace
+      # FIX 6 - SERVER LICENSE SERVICE
       # ---------------------------------------------------------
+
       - name: Fix Server LicenseService
         shell: pwsh
         run: |
-
-          $serverLicense = Get-ChildItem `
+          $file = Get-ChildItem `
             -Path source `
             -Filter "LicenseService.cs" `
             -File `
@@ -372,44 +319,38 @@ jobs:
             } |
             Select-Object -First 1
 
-          if ($serverLicense) {
-
-            Write-Host "Fixing Server LicenseService:"
-            Write-Host $serverLicense.FullName
-
-            $path = $serverLicense.FullName
-
-            $content = Get-Content `
-              -Path $path `
-              -Raw
-
-            if ($content -notmatch 'using Microsoft\.EntityFrameworkCore;') {
-
-              $content =
-                'using Microsoft.EntityFrameworkCore;' +
-                [Environment]::NewLine +
-                $content
-            }
-
-            Set-Content `
-              -Path $path `
-              -Value $content `
-              -Encoding UTF8
-
-            Write-Host "Server Entity Framework namespace fixed."
-          }
-          else {
+          if (-not $file) {
             Write-Host "Server LicenseService.cs not found."
+            exit 0
           }
 
+          Write-Host "Fixing:"
+          Write-Host $file.FullName
+
+          $path = $file.FullName
+          $content = Get-Content $path -Raw
+
+          if ($content -notmatch 'using Microsoft\.EntityFrameworkCore;') {
+
+            $content =
+              "using Microsoft.EntityFrameworkCore;`r`n" +
+              $content
+          }
+
+          Set-Content `
+            -Path $path `
+            -Value $content `
+            -Encoding UTF8
+
+          Write-Host "Server EF Core namespace fixed."
 
       # ---------------------------------------------------------
-      # 11. Find Solution
+      # FIND SOLUTION
       # ---------------------------------------------------------
-      - name: Find Visual Studio Solution
+
+      - name: Find Solution
         shell: pwsh
         run: |
-
           $sln = Get-ChildItem `
             -Path source `
             -Filter "*.sln" `
@@ -418,38 +359,38 @@ jobs:
             Select-Object -First 1
 
           if (-not $sln) {
-            Write-Error "No Visual Studio solution (.sln) found."
+            Write-Error "No .sln file found."
             exit 1
           }
 
-          Write-Host "Solution found:"
+          Write-Host "Solution:"
           Write-Host $sln.FullName
 
           "SOLUTION=$($sln.FullName)" >> $env:GITHUB_ENV
 
+      # ---------------------------------------------------------
+      # RESTORE
+      # ---------------------------------------------------------
 
-      # ---------------------------------------------------------
-      # 12. Restore
-      # ---------------------------------------------------------
-      - name: Restore NuGet Packages
+      - name: Restore
         run: |
           dotnet restore "$env:SOLUTION"
 
+      # ---------------------------------------------------------
+      # BUILD
+      # ---------------------------------------------------------
 
-      # ---------------------------------------------------------
-      # 13. Build
-      # ---------------------------------------------------------
-      - name: Build Solution
+      - name: Build
         run: |
           dotnet build "$env:SOLUTION" `
             -c Release `
             --no-restore
 
+      # ---------------------------------------------------------
+      # PUBLISH
+      # ---------------------------------------------------------
 
-      # ---------------------------------------------------------
-      # 14. Publish
-      # ---------------------------------------------------------
-      - name: Publish Projects
+      - name: Publish
         shell: pwsh
         run: |
 
@@ -458,4 +399,59 @@ jobs:
             -Force `
             -Path publish | Out-Null
 
-          $projects =
+          $projects = Get-ChildItem `
+            -Path source `
+            -Filter "*.csproj" `
+            -File `
+            -Recurse
+
+          foreach ($project in $projects) {
+
+            Write-Host ""
+            Write-Host "Publishing:"
+            Write-Host $project.FullName
+
+            $name = $project.BaseName
+
+            dotnet publish `
+              $project.FullName `
+              -c Release `
+              -r win-x64 `
+              --self-contained true `
+              -p:PublishSingleFile=true `
+              -p:IncludeNativeLibrariesForSelfExtract=true `
+              -o "publish/$name"
+          }
+
+      # ---------------------------------------------------------
+      # CREATE WINDOWS ZIP
+      # ---------------------------------------------------------
+
+      - name: Create Windows ZIP
+        shell: pwsh
+        run: |
+
+          if (-not (Test-Path "publish")) {
+            Write-Error "Publish folder not found."
+            exit 1
+          }
+
+          Compress-Archive `
+            -Path "publish/*" `
+            -DestinationPath "IFAS-VMS-WIN-X64.zip" `
+            -Force
+
+          Write-Host ""
+          Write-Host "======================================"
+          Write-Host "IFAS VMS WINDOWS BUILD CREATED"
+          Write-Host "======================================"
+
+      # ---------------------------------------------------------
+      # UPLOAD ARTIFACT
+      # ---------------------------------------------------------
+
+      - name: Upload Windows Build
+        uses: actions/upload-artifact@v4
+        with:
+          name: IFAS-VMS-WIN-X64
+          path: IFAS-VMS-WIN-X64.zip
