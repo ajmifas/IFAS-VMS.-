@@ -22,7 +22,7 @@ jobs:
         run: |
           $zip = Get-ChildItem `
             -Path . `
-            -Filter "IFAS-VMS-COMPLETE-PRODUCT-V3.zip" `
+            -Filter "-Filter "IFAS-VMS-SERVER.zip"" `
             -Recurse |
             Select-Object -First 1
 
