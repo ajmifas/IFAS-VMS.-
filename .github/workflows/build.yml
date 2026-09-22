@@ -18,13 +18,38 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Extract IFAS VMS ZIP
+            - name: Extract IFAS VMS ZIP
         shell: pwsh
         run: |
           $zip = Get-ChildItem `
             -Path . `
-            -Filter "IFAS-VMS-SERVER.zip" `
+            -Filter "*.zip" `
+            -File `
             -Recurse |
+            Where-Object {
+              $_.FullName -notmatch "\\.git\\"
+            } |
             Select-Object -First 1
+
+          if (-not $zip) {
+            Write-Error "No ZIP file found in repository."
+            exit 1
+          }
+
+          Write-Host "ZIP found:"
+          Write-Host $zip.FullName
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path source | Out-Null
+
+          Expand-Archive `
+            -Path $zip.FullName `
+            -DestinationPath source `
+            -Force
+
+          Write-Host "ZIP extracted successfully."
 
           if (-not $zip) {
             Write-Error "IFAS-VMS-SERVER.zip not found."
